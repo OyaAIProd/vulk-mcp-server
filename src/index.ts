@@ -554,12 +554,11 @@ server.tool(
 
 server.tool(
   "subscribe",
-  "Get a link to upgrade your VULK plan. Plans: Free ($0, 3 gen/mo), " +
-    "Builder ($19/mo, 100 gen), Pro ($49/mo, 300 gen), " +
-    "Team ($99/mo, 1000 gen), Business ($249/mo, unlimited).",
+  "Get a link to upgrade your VULK plan. Credits are token-based — " +
+    "simple apps use ~100 credits, complex ones ~500+.",
   {
     plan: z
-      .enum(["builder", "pro", "team", "business"])
+      .enum(["builder", "pro", "team", "max", "business"])
       .optional()
       .describe("Plan to subscribe to. Opens pricing page if omitted."),
   },
@@ -577,43 +576,64 @@ server.tool(
               url,
               plans: {
                 builder: {
-                  price: "$19/mo",
-                  generations: "100/mo",
+                  price: "$19.99/mo",
+                  credits: "1,000/mo",
+                  models: "Basic (Haiku, Flash, Mini)",
                   features: [
-                    "All AI models",
+                    "Unlimited projects",
                     "Custom domains",
-                    "Priority support",
+                    "Export to PWA & APK",
+                    "Email support",
                   ],
                 },
                 pro: {
-                  price: "$49/mo",
-                  generations: "300/mo",
+                  price: "$39.99/mo",
+                  credits: "2,500/mo",
+                  models: "All 16+ models",
                   features: [
                     "Everything in Builder",
-                    "Team collaboration",
+                    "All AI models (Claude, GPT-4o, Gemini, etc.)",
+                    "Figma import",
+                    "GitHub integration",
+                    "Team collaboration (3 users)",
                     "API access",
-                    "Priority generation queue",
+                    "iOS export + Flutter converter",
                   ],
                 },
                 team: {
-                  price: "$99/mo",
-                  generations: "1000/mo",
+                  price: "$79.99/mo",
+                  credits: "5,000/mo (shared)",
+                  models: "All models",
                   features: [
                     "Everything in Pro",
-                    "5 team seats",
-                    "SSO",
-                    "Dedicated support",
+                    "Unlimited team members",
+                    "Included .com domain",
+                    "Analytics dashboard",
+                    "Role-based permissions",
+                  ],
+                },
+                max: {
+                  price: "$199/mo",
+                  credits: "10,000/mo",
+                  models: "All + BYOM",
+                  features: [
+                    "Everything in Pro",
+                    "White-label solution",
+                    "BYOM (Bring Your Own Model)",
+                    "Training opt-out (privacy)",
+                    "App Store submission support",
                   ],
                 },
                 business: {
-                  price: "$249/mo",
-                  generations: "Unlimited",
+                  price: "$299/mo",
+                  credits: "20,000/mo",
+                  models: "All + custom",
                   features: [
-                    "Everything in Team",
-                    "Unlimited seats",
-                    "SLA",
-                    "Custom integrations",
-                    "On-premise option",
+                    "Everything in Team + Max",
+                    "SSO/SAML integration",
+                    "SLA guarantee (99.9%)",
+                    "Dedicated 24/7 support",
+                    "Audit logs",
                   ],
                 },
               },

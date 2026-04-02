@@ -182,15 +182,16 @@ The generation pipeline includes:
 
 ## Pricing
 
-| Plan | Price | Generations | Best For |
-|------|-------|-------------|----------|
-| Free | $0 | 3/month | Trying it out |
-| Builder | $19/mo | 100/month | Individual developers |
-| Pro | $49/mo | 300/month | Power users |
-| Team | $99/mo | 1,000/month | Small teams |
-| Business | $249/mo | Unlimited | Organizations |
+| Plan | Price | Credits/month | Models | Best For |
+|------|-------|---------------|--------|----------|
+| Free | $0 | 3 generations | Basic | Trying it out |
+| Builder | $19.99/mo | 1,000 | Basic (Haiku, Flash, Mini) | Getting started |
+| Pro | $39.99/mo | 2,500 | All 16+ models | Power users |
+| Team | $79.99/mo | 5,000 | All models + collaboration | Small teams |
+| Max | $199/mo | 10,000 | All + white-label + BYOM | Agencies |
+| Business | $299/mo | 20,000 | Everything + SSO + SLA | Organizations |
 
-All plans include all AI models, custom domains, and API access.
+Credits are token-based — simple apps use ~100 credits, complex ones ~500+. [Full pricing details](https://vulk.dev/pricing).
 
 ## Development
 

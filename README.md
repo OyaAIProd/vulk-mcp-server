@@ -22,6 +22,8 @@
 
 ## What This Does
 
+[![SafeSkill 97/100](https://img.shields.io/badge/SafeSkill-97%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/devjoaocastro-vulk-mcp-server)
+
 This MCP server connects AI coding assistants to VULK's app builder. When you say _"build me a project management dashboard"_, it doesn't just return a template — it triggers VULK's full AI generation pipeline:
 
 - **16 AI models** (Claude, GPT-4o, Gemini, DeepSeek, and more)

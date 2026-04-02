@@ -3,24 +3,27 @@
 /**
  * VULK MCP Server
  *
- * Model Context Protocol server that exposes VULK's AI app builder
- * to Claude Desktop, Cursor, Windsurf, VS Code, and any MCP client.
+ * Model Context Protocol server that gives AI assistants the power to build,
+ * edit, deploy, and manage full-stack web applications through VULK.
+ *
+ * This is not a wrapper — it triggers real AI generation, streams progress,
+ * and returns production-ready code.
  *
  * Tools:
- *   - generate:  Create a new web app from a text prompt
- *   - edit:      Modify an existing project with instructions
- *   - list:      List your VULK projects
- *   - get:       Get project details and status
- *   - files:     Download project source files
- *   - deploy:    Deploy a project to production
- *
- * Auth:
- *   VULK_API_KEY environment variable (get yours at https://vulk.dev/settings/api-keys)
+ *   generate  — Build a new web app from a text prompt (real AI generation)
+ *   edit      — Modify an existing project with natural language
+ *   list      — List your VULK projects
+ *   get       — Get project details, status, and deployment URLs
+ *   files     — Read the source code of any project
+ *   deploy    — Deploy a project to production (Cloudflare Pages)
+ *   models    — List available AI models and their capabilities
+ *   usage     — Check API usage, credits, and rate limits
+ *   subscribe — Get a checkout link to upgrade your VULK plan
  *
  * Usage:
  *   npx @vulk/mcp-server
  *
- * Claude Desktop config:
+ * Config (Claude Desktop / Cursor / Windsurf / VS Code):
  *   {
  *     "mcpServers": {
  *       "vulk": {
@@ -30,91 +33,159 @@
  *       }
  *     }
  *   }
+ *
+ * Get your API key: https://vulk.dev/settings/api-keys
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { vulkApi, type ApiResponse } from "./api.js";
+import { vulkApi, vulkStream, type ApiResponse } from "./api.js";
 
-// ── Server setup ──────────────────────────────────────────────
+// ── Server ────────────────────────────────────────────────────
 
 const server = new McpServer({
   name: "vulk",
   version: "1.0.0",
 });
 
-// ── Auth helper ───────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────
 
 function getApiKey(): string {
   const key = process.env.VULK_API_KEY;
   if (!key) {
     throw new Error(
-      "VULK_API_KEY is not set. Get your key at https://vulk.dev/settings/api-keys"
+      "VULK_API_KEY not set.\n\n" +
+        "1. Go to https://vulk.dev/settings/api-keys\n" +
+        "2. Create a new API key\n" +
+        "3. Set it as VULK_API_KEY in your MCP server config\n\n" +
+        "Example (Claude Desktop):\n" +
+        '  { "env": { "VULK_API_KEY": "vk_sk_..." } }'
     );
   }
   if (!key.startsWith("vk_sk_")) {
-    throw new Error(
-      "Invalid VULK_API_KEY format. Keys start with vk_sk_"
-    );
+    throw new Error("Invalid VULK_API_KEY. Keys start with vk_sk_");
   }
   return key;
 }
 
 // ── Tool: generate ────────────────────────────────────────────
+// This is the crown jewel — triggers REAL AI generation via VULK's
+// agent pipeline and streams back the generated files.
 
 server.tool(
   "generate",
-  "Create a new VULK project from a text prompt. Generates a complete web application " +
-    "with React, routing, styling, and all necessary files. Returns the project ID and URLs.",
+  "Build a complete web application from a text description. " +
+    "VULK's AI generates all files (React components, pages, routing, styling, " +
+    "API endpoints, database schemas) and deploys a live preview. " +
+    "Generation takes 1-5 minutes depending on complexity. " +
+    "Returns the generated files, preview URL, and editor URL.",
   {
     prompt: z
       .string()
       .describe(
-        "Description of the app to build. Be specific about features, pages, styling, " +
-          "and functionality. Example: 'A modern SaaS dashboard with user authentication, " +
-          "analytics charts, settings page, and dark mode support'"
+        "Detailed description of the app to build. Be specific about features, " +
+          "pages, design style, and functionality. More detail = better results. " +
+          "Example: 'A modern project management app like Linear with kanban boards, " +
+          "sprint planning, team member assignments, dark mode, and real-time updates'"
       ),
-    projectType: z
-      .enum([
-        "landing-page",
-        "dashboard",
-        "portfolio",
-        "e-commerce",
-        "blog",
-        "saas",
-        "mobile-app",
-        "admin-panel",
-        "crm",
-        "other",
-      ])
-      .optional()
-      .describe("Type of project to generate. Helps optimize the generation pipeline."),
     model: z
       .string()
       .optional()
       .describe(
-        "AI model to use (e.g., 'claude-sonnet-4-20250514', 'gpt-4o'). " +
-          "Defaults to the best available model for your plan."
+        "AI model to use. Options include: 'claude-sonnet-4-20250514' (default, best quality), " +
+          "'gpt-4o' (fast), 'gemini-2.5-pro' (creative), 'deepseek-chat' (budget). " +
+          "Leave empty for the best model available on your plan."
       ),
   },
-  async ({ prompt, projectType, model }) => {
+  async ({ prompt, model }) => {
     const apiKey = getApiKey();
+    const log = (msg: string) =>
+      process.stderr.write(`[vulk] ${msg}\n`);
 
-    const res = await vulkApi<{
-      project: { id: string; prompt: string; createdAt: string };
+    // Step 1: Create project record
+    log("Creating project...");
+    const createRes = await vulkApi<{
+      project: { id: string };
     }>("/api/v1/projects", apiKey, {
       method: "POST",
-      body: { prompt, projectType, model },
+      body: { prompt, model },
     });
 
-    if (!res.ok) {
-      return error(res, "Failed to create project");
+    if (!createRes.ok) {
+      return err(createRes, "Failed to create project");
     }
 
-    const project = res.data.project;
-    const editorUrl = `https://vulk.dev/ui/${project.id}`;
-    const previewUrl = `https://webapp.vulk.dev/${project.id}`;
+    const uiId = createRes.data.project.id;
+    log(`Project ${uiId} created. Starting generation...`);
+
+    // Step 2: Trigger real generation via agent stream
+    const files: Array<{ path: string; language?: string }> = [];
+    let generationError: string | null = null;
+    let totalTokens = 0;
+    let generationCost = 0;
+
+    try {
+      const stream = await vulkStream("/api/agent/stream", apiKey, {
+        message: prompt,
+        uiId,
+        model: model || undefined,
+        existingFiles: [],
+      });
+
+      for await (const event of stream) {
+        switch (event.type) {
+          case "file_complete":
+            if (event.payload?.filePath) {
+              files.push({
+                path: event.payload.filePath as string,
+                language: event.payload.language as string | undefined,
+              });
+              log(`  Generated: ${event.payload.filePath}`);
+            }
+            break;
+
+          case "session_end":
+            totalTokens =
+              ((event.payload?.tokensUsed as Record<string, number>)
+                ?.input || 0) +
+              ((event.payload?.tokensUsed as Record<string, number>)
+                ?.output || 0);
+            generationCost =
+              (event.payload?.cost as number) || 0;
+            break;
+
+          case "error":
+            generationError =
+              (event.payload?.message as string) || "Generation failed";
+            break;
+        }
+      }
+    } catch (e) {
+      generationError =
+        e instanceof Error ? e.message : "Stream connection failed";
+    }
+
+    if (generationError) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Generation failed: ${generationError}\n\n` +
+              `You can try again or open the editor manually:\n` +
+              `https://vulk.dev/ui/${uiId}`,
+          },
+        ],
+        isError: true as const,
+      };
+    }
+
+    const editorUrl = `https://vulk.dev/ui/${uiId}`;
+    const previewUrl = `https://webapp.vulk.dev/${uiId}`;
+
+    log(
+      `Generation complete: ${files.length} files, ${totalTokens} tokens`
+    );
 
     return {
       content: [
@@ -122,13 +193,21 @@ server.tool(
           type: "text" as const,
           text: JSON.stringify(
             {
-              projectId: project.id,
+              status: "complete",
+              projectId: uiId,
               editorUrl,
               previewUrl,
-              status: "created",
-              message:
-                "Project created. Open the editor URL to start generation, " +
-                "or use the 'get' tool to check status.",
+              filesGenerated: files.length,
+              files: files.map((f) => f.path),
+              tokens: totalTokens,
+              cost: `$${generationCost.toFixed(4)}`,
+              nextSteps: [
+                `Preview: ${previewUrl}`,
+                `Edit in VULK: ${editorUrl}`,
+                "Use the 'edit' tool to make changes",
+                "Use the 'deploy' tool to publish to production",
+                "Use the 'files' tool to read the source code",
+              ],
             },
             null,
             2
@@ -143,34 +222,79 @@ server.tool(
 
 server.tool(
   "edit",
-  "Edit an existing VULK project with natural language instructions. " +
-    "Describe what to change and VULK's AI will modify the relevant files.",
+  "Modify an existing VULK project using natural language. " +
+    "Describe the changes and VULK's AI will update the relevant files. " +
+    "Works like a senior developer taking instructions.",
   {
-    projectId: z.string().describe("The project ID to edit"),
+    projectId: z.string().describe("Project ID to edit"),
     instruction: z
       .string()
       .describe(
-        "What to change. Example: 'Add a contact form with email validation to the homepage'"
-      ),
-    files: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Specific files to modify (e.g., ['src/App.tsx', 'src/pages/Home.tsx']). " +
-          "If omitted, the AI decides which files to change."
+        "What to change. Be specific. " +
+          "Example: 'Add a settings page with tabs for Profile, Billing, and Notifications. " +
+          "Include form validation and a save button with loading state.'"
       ),
   },
-  async ({ projectId, instruction, files }) => {
+  async ({ projectId, instruction }) => {
     const apiKey = getApiKey();
+    const log = (msg: string) =>
+      process.stderr.write(`[vulk] ${msg}\n`);
 
-    // Verify the project exists and belongs to user
-    const check = await vulkApi(`/api/v1/projects/${projectId}`, apiKey);
-    if (!check.ok) {
-      return error(check, "Project not found");
+    // Get existing files for context
+    log("Fetching project files...");
+    const filesRes = await vulkApi<{
+      files: Array<{ path: string; content: string }>;
+    }>(`/api/v1/projects/${projectId}/files`, apiKey);
+
+    if (!filesRes.ok) {
+      return err(filesRes, "Project not found or no files");
     }
 
-    // For now, return edit instructions. Full async edit coming soon.
-    const editorUrl = `https://vulk.dev/ui/${projectId}`;
+    const existingFiles = filesRes.data.files || [];
+    log(
+      `Found ${existingFiles.length} files. Starting edit...`
+    );
+
+    // Trigger edit via agent stream
+    const updatedFiles: string[] = [];
+    let editError: string | null = null;
+
+    try {
+      const stream = await vulkStream("/api/agent/stream", apiKey, {
+        message: instruction,
+        uiId: projectId,
+        isEdit: true,
+        existingFiles: existingFiles.map((f) => ({
+          path: f.path,
+          content: f.content,
+        })),
+      });
+
+      for await (const event of stream) {
+        if (event.type === "file_complete" && event.payload?.filePath) {
+          updatedFiles.push(event.payload.filePath as string);
+          log(`  Updated: ${event.payload.filePath}`);
+        }
+        if (event.type === "error") {
+          editError =
+            (event.payload?.message as string) || "Edit failed";
+        }
+      }
+    } catch (e) {
+      editError = e instanceof Error ? e.message : "Stream failed";
+    }
+
+    if (editError) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Edit failed: ${editError}\n\nTry in the editor: https://vulk.dev/ui/${projectId}`,
+          },
+        ],
+        isError: true as const,
+      };
+    }
 
     return {
       content: [
@@ -178,13 +302,12 @@ server.tool(
           type: "text" as const,
           text: JSON.stringify(
             {
+              status: "complete",
               projectId,
-              editorUrl,
-              instruction,
-              targetFiles: files || "auto-detect",
-              message:
-                `Open ${editorUrl} and paste your instruction in the chat ` +
-                `to apply the edit. API-driven editing coming in v1.1.`,
+              filesUpdated: updatedFiles.length,
+              files: updatedFiles,
+              previewUrl: `https://webapp.vulk.dev/${projectId}`,
+              editorUrl: `https://vulk.dev/ui/${projectId}`,
             },
             null,
             2
@@ -199,22 +322,20 @@ server.tool(
 
 server.tool(
   "list",
-  "List your VULK projects with pagination. Returns project IDs, prompts, " +
+  "List your VULK projects. Returns project IDs, descriptions, " +
     "creation dates, and deployment URLs.",
   {
     limit: z
       .number()
       .min(1)
       .max(100)
-      .default(20)
       .optional()
-      .describe("Number of projects to return (1-100, default 20)"),
+      .describe("Number of projects (1-100, default 20)"),
     offset: z
       .number()
       .min(0)
-      .default(0)
       .optional()
-      .describe("Number of projects to skip (for pagination)"),
+      .describe("Skip N projects (for pagination)"),
   },
   async ({ limit, offset }) => {
     const apiKey = getApiKey();
@@ -229,20 +350,22 @@ server.tool(
         createdAt: string;
         updatedAt: string;
         deploymentUrl?: string;
-        visibility?: string;
       }>;
-      pagination: { limit: number; offset: number };
     }>(`/api/v1/projects?${params}`, apiKey);
 
-    if (!res.ok) {
-      return error(res, "Failed to list projects");
-    }
+    if (!res.ok) return err(res, "Failed to list projects");
+
+    const projects = (res.data.projects || []).map((p) => ({
+      ...p,
+      editorUrl: `https://vulk.dev/ui/${p.id}`,
+      previewUrl: `https://webapp.vulk.dev/${p.id}`,
+    }));
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(res.data, null, 2),
+          text: JSON.stringify({ projects, total: projects.length }, null, 2),
         },
       ],
     };
@@ -253,40 +376,28 @@ server.tool(
 
 server.tool(
   "get",
-  "Get details about a specific VULK project including its status, " +
-    "deployment URL, and metadata.",
+  "Get details about a specific project — status, files, deployment URL, " +
+    "and metadata.",
   {
-    projectId: z.string().describe("The project ID to look up"),
+    projectId: z.string().describe("Project ID"),
   },
   async ({ projectId }) => {
     const apiKey = getApiKey();
     const res = await vulkApi<{
-      project: {
-        id: string;
-        prompt: string;
-        createdAt: string;
-        updatedAt: string;
-        deployedUrl?: string;
-        customSubdomain?: string;
-        visibility?: string;
-        uiType?: string;
-      };
+      project: Record<string, unknown>;
     }>(`/api/v1/projects/${projectId}`, apiKey);
 
-    if (!res.ok) {
-      return error(res, "Project not found");
-    }
+    if (!res.ok) return err(res, "Project not found");
 
-    const project = res.data.project;
     return {
       content: [
         {
           type: "text" as const,
           text: JSON.stringify(
             {
-              ...project,
-              editorUrl: `https://vulk.dev/ui/${project.id}`,
-              previewUrl: `https://webapp.vulk.dev/${project.id}`,
+              ...res.data.project,
+              editorUrl: `https://vulk.dev/ui/${projectId}`,
+              previewUrl: `https://webapp.vulk.dev/${projectId}`,
             },
             null,
             2
@@ -301,10 +412,10 @@ server.tool(
 
 server.tool(
   "files",
-  "Get the source files of a VULK project. Returns file paths, content, " +
-    "and metadata for all files in the project.",
+  "Read the source code of a VULK project. Returns every file with " +
+    "its path, content, language, and size.",
   {
-    projectId: z.string().describe("The project ID"),
+    projectId: z.string().describe("Project ID"),
   },
   async ({ projectId }) => {
     const apiKey = getApiKey();
@@ -318,9 +429,7 @@ server.tool(
       total: number;
     }>(`/api/v1/projects/${projectId}/files`, apiKey);
 
-    if (!res.ok) {
-      return error(res, "Failed to get project files");
-    }
+    if (!res.ok) return err(res, "Project not found");
 
     return {
       content: [
@@ -330,12 +439,7 @@ server.tool(
             {
               projectId,
               totalFiles: res.data.total,
-              files: res.data.files.map((f) => ({
-                path: f.path,
-                language: f.language,
-                size: f.size,
-                content: f.content,
-              })),
+              files: res.data.files,
             },
             null,
             2
@@ -351,20 +455,38 @@ server.tool(
 server.tool(
   "deploy",
   "Deploy a VULK project to production on Cloudflare Pages. " +
-    "Returns the live URL when deployment completes.",
+    "Returns the live production URL. Requires an active subscription.",
   {
-    projectId: z.string().describe("The project ID to deploy"),
+    projectId: z.string().describe("Project ID to deploy"),
   },
   async ({ projectId }) => {
     const apiKey = getApiKey();
 
-    // Verify project exists
-    const check = await vulkApi(`/api/v1/projects/${projectId}`, apiKey);
-    if (!check.ok) {
-      return error(check, "Project not found");
-    }
+    // Trigger deploy via the worker deploy endpoint
+    const res = await vulkApi<{
+      success: boolean;
+      url?: string;
+      error?: string;
+    }>("/api/cloudflare/worker/deploy", apiKey, {
+      method: "POST",
+      body: { projectId },
+      timeout: 120_000, // deploys can take up to 2 minutes
+    });
 
-    const editorUrl = `https://vulk.dev/ui/${projectId}`;
+    if (!res.ok || !res.data.success) {
+      const msg =
+        res.data.error ||
+        "Deploy failed. Make sure you have an active subscription.";
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Deploy failed: ${msg}\n\nDeploy manually: https://vulk.dev/ui/${projectId}`,
+          },
+        ],
+        isError: true as const,
+      };
+    }
 
     return {
       content: [
@@ -372,11 +494,10 @@ server.tool(
           type: "text" as const,
           text: JSON.stringify(
             {
+              status: "deployed",
               projectId,
-              editorUrl,
-              message:
-                `Open ${editorUrl} and click Deploy to publish your project. ` +
-                `API-driven deployment coming in v1.1.`,
+              productionUrl: res.data.url,
+              editorUrl: `https://vulk.dev/ui/${projectId}`,
             },
             null,
             2
@@ -391,29 +512,18 @@ server.tool(
 
 server.tool(
   "models",
-  "List all available AI models on VULK with their capabilities and pricing tiers.",
+  "List all AI models available on VULK — names, providers, capabilities, " +
+    "and which plan tier they require.",
   {},
   async () => {
     const apiKey = getApiKey();
-    const res = await vulkApi<{
-      models: Array<{
-        id: string;
-        name: string;
-        provider: string;
-        tier?: string;
-      }>;
-    }>("/api/v1/models", apiKey);
+    const res = await vulkApi("/api/v1/models", apiKey);
 
-    if (!res.ok) {
-      return error(res, "Failed to list models");
-    }
+    if (!res.ok) return err(res, "Failed to list models");
 
     return {
       content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(res.data, null, 2),
-        },
+        { type: "text" as const, text: JSON.stringify(res.data, null, 2) },
       ],
     };
   }
@@ -423,31 +533,103 @@ server.tool(
 
 server.tool(
   "usage",
-  "Get your VULK API usage statistics — request counts, tokens used, " +
+  "Check your VULK API usage — requests made, credits remaining, " +
     "and rate limit status.",
   {},
   async () => {
     const apiKey = getApiKey();
     const res = await vulkApi("/api/v1/usage", apiKey);
 
-    if (!res.ok) {
-      return error(res, "Failed to get usage stats");
-    }
+    if (!res.ok) return err(res, "Failed to get usage");
+
+    return {
+      content: [
+        { type: "text" as const, text: JSON.stringify(res.data, null, 2) },
+      ],
+    };
+  }
+);
+
+// ── Tool: subscribe ───────────────────────────────────────────
+
+server.tool(
+  "subscribe",
+  "Get a link to upgrade your VULK plan. Plans: Free ($0, 3 gen/mo), " +
+    "Builder ($19/mo, 100 gen), Pro ($49/mo, 300 gen), " +
+    "Team ($99/mo, 1000 gen), Business ($249/mo, unlimited).",
+  {
+    plan: z
+      .enum(["builder", "pro", "team", "business"])
+      .optional()
+      .describe("Plan to subscribe to. Opens pricing page if omitted."),
+  },
+  async ({ plan }) => {
+    const url = plan
+      ? `https://vulk.dev/pricing?plan=${plan}`
+      : "https://vulk.dev/pricing";
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(res.data, null, 2),
+          text: JSON.stringify(
+            {
+              url,
+              plans: {
+                builder: {
+                  price: "$19/mo",
+                  generations: "100/mo",
+                  features: [
+                    "All AI models",
+                    "Custom domains",
+                    "Priority support",
+                  ],
+                },
+                pro: {
+                  price: "$49/mo",
+                  generations: "300/mo",
+                  features: [
+                    "Everything in Builder",
+                    "Team collaboration",
+                    "API access",
+                    "Priority generation queue",
+                  ],
+                },
+                team: {
+                  price: "$99/mo",
+                  generations: "1000/mo",
+                  features: [
+                    "Everything in Pro",
+                    "5 team seats",
+                    "SSO",
+                    "Dedicated support",
+                  ],
+                },
+                business: {
+                  price: "$249/mo",
+                  generations: "Unlimited",
+                  features: [
+                    "Everything in Team",
+                    "Unlimited seats",
+                    "SLA",
+                    "Custom integrations",
+                    "On-premise option",
+                  ],
+                },
+              },
+            },
+            null,
+            2
+          ),
         },
       ],
     };
   }
 );
 
-// ── Error helper ──────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 
-function error(res: ApiResponse, fallback: string) {
+function err(res: ApiResponse, fallback: string) {
   const msg =
     (res.data as Record<string, string>)?.error ||
     `${fallback} (HTTP ${res.status})`;
@@ -457,14 +639,14 @@ function error(res: ApiResponse, fallback: string) {
   };
 }
 
-// ── Start server ──────────────────────────────────────────────
+// ── Start ─────────────────────────────────────────────────────
 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  process.stderr.write(`[vulk-mcp] Fatal: ${err}\n`);
+main().catch((e) => {
+  process.stderr.write(`[vulk] Fatal: ${e}\n`);
   process.exit(1);
 });

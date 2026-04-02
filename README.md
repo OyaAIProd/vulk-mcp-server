@@ -1,14 +1,40 @@
-# VULK MCP Server
+<p align="center">
+  <img src="https://vulk.dev/images/vulk-icon.svg" alt="VULK" width="60" height="60" />
+</p>
 
-Build full-stack web applications from any AI coding tool using [VULK](https://vulk.dev).
+<h1 align="center">VULK MCP Server</h1>
 
-This MCP server lets AI assistants (Claude, Cursor, Windsurf, VS Code Copilot) create, edit, deploy, and manage VULK projects programmatically.
+<p align="center">
+  <strong>Build full-stack web applications from any AI assistant.</strong>
+</p>
 
-## Quick Start
+<p align="center">
+  <a href="https://www.npmjs.com/package/@vulk/mcp-server"><img src="https://img.shields.io/npm/v/@vulk/mcp-server?color=0D9373" alt="npm" /></a>
+  <a href="https://vulk.dev"><img src="https://img.shields.io/badge/vulk.dev-live-0D9373" alt="VULK" /></a>
+  <a href="https://github.com/devjoaocastro/vulk-mcp-server/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
+</p>
+
+<p align="center">
+  Give Claude, Cursor, Windsurf, or VS Code Copilot the ability to generate, edit, and deploy production-ready web applications — powered by <a href="https://vulk.dev">VULK</a>.
+</p>
+
+---
+
+## What This Does
+
+This MCP server connects AI coding assistants to VULK's app builder. When you say _"build me a project management dashboard"_, it doesn't just return a template — it triggers VULK's full AI generation pipeline:
+
+- **16 AI models** (Claude, GPT-4o, Gemini, DeepSeek, and more)
+- **Real-time generation** with file streaming
+- **Full-stack output** (React + Tailwind + routing + API + database schemas)
+- **Live preview** at `webapp.vulk.dev`
+- **One-command deploy** to Cloudflare Pages
+
+## Quick Setup
 
 ### Claude Desktop
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -17,7 +43,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "command": "npx",
       "args": ["-y", "@vulk/mcp-server"],
       "env": {
-        "VULK_API_KEY": "vk_sk_your_api_key_here"
+        "VULK_API_KEY": "vk_sk_your_key_here"
       }
     }
   }
@@ -26,7 +52,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 ### Cursor
 
-Add to Cursor settings (Settings > MCP Servers):
+Settings → MCP Servers → Add:
 
 ```json
 {
@@ -34,7 +60,7 @@ Add to Cursor settings (Settings > MCP Servers):
     "command": "npx",
     "args": ["-y", "@vulk/mcp-server"],
     "env": {
-      "VULK_API_KEY": "vk_sk_your_api_key_here"
+      "VULK_API_KEY": "vk_sk_your_key_here"
     }
   }
 }
@@ -42,7 +68,7 @@ Add to Cursor settings (Settings > MCP Servers):
 
 ### VS Code (GitHub Copilot)
 
-Add to `.vscode/mcp.json`:
+Create `.vscode/mcp.json`:
 
 ```json
 {
@@ -51,7 +77,7 @@ Add to `.vscode/mcp.json`:
       "command": "npx",
       "args": ["-y", "@vulk/mcp-server"],
       "env": {
-        "VULK_API_KEY": "vk_sk_your_api_key_here"
+        "VULK_API_KEY": "vk_sk_your_key_here"
       }
     }
   }
@@ -60,7 +86,7 @@ Add to `.vscode/mcp.json`:
 
 ### Windsurf
 
-Add to Windsurf MCP settings:
+Add to MCP settings:
 
 ```json
 {
@@ -68,7 +94,7 @@ Add to Windsurf MCP settings:
     "command": "npx",
     "args": ["-y", "@vulk/mcp-server"],
     "env": {
-      "VULK_API_KEY": "vk_sk_your_api_key_here"
+      "VULK_API_KEY": "vk_sk_your_key_here"
     }
   }
 }
@@ -77,77 +103,112 @@ Add to Windsurf MCP settings:
 ## Get Your API Key
 
 1. Go to [vulk.dev/settings/api-keys](https://vulk.dev/settings/api-keys)
-2. Click "Create API Key"
+2. Click **Create API Key**
 3. Copy the key (starts with `vk_sk_`)
+
+Free accounts get 3 generations/month. [Upgrade](https://vulk.dev/pricing) for more.
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `generate` | Create a new web app from a text prompt |
-| `edit` | Modify an existing project with instructions |
-| `list` | List your projects with pagination |
-| `get` | Get project details, status, and URLs |
-| `files` | Download project source files |
-| `deploy` | Deploy a project to production |
-| `models` | List available AI models |
-| `usage` | Check your API usage stats |
+### `generate` — Build a new app
 
-### Example: Generate an app
+> "Build a modern SaaS dashboard with user auth, analytics charts, team management, and dark mode"
 
-> "Use VULK to build a modern task management app with drag-and-drop, dark mode, and team collaboration"
+Creates a project, triggers AI generation, and returns all generated files with preview URL. Generation runs through VULK's full pipeline — intent analysis, code generation, auto-fixing, and browser verification.
 
-### Example: List projects
+### `edit` — Modify an existing project
 
-> "Show me my VULK projects"
+> "Add a settings page with tabs for Profile, Billing, and Notifications"
 
-### Example: Get project files
+Sends your instruction to VULK's AI with full context of the existing project files. The AI decides which files to create or modify.
 
-> "Get the source code of my VULK project abc123"
+### `list` — See your projects
+
+Returns all your VULK projects with IDs, prompts, dates, and deployment URLs.
+
+### `get` — Project details
+
+Get status, metadata, and URLs for a specific project.
+
+### `files` — Read source code
+
+Download every file from a project — paths, content, language detection.
+
+### `deploy` — Ship to production
+
+Deploy to Cloudflare Pages and get a live production URL. Requires an active subscription.
+
+### `models` — Available AI models
+
+See which AI models are available on your plan and their capabilities.
+
+### `usage` — Check your limits
+
+View API request counts, credits remaining, and rate limit status.
+
+### `subscribe` — Upgrade your plan
+
+Get a link to upgrade. Plans from $19/mo (100 generations) to $249/mo (unlimited).
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VULK_API_KEY` | Yes | Your VULK API key (`vk_sk_...`) |
-| `VULK_API_BASE` | No | API base URL (default: `https://vulk.dev`) |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VULK_API_KEY` | Yes | — | Your VULK API key (`vk_sk_...`) |
+| `VULK_API_BASE` | No | `https://vulk.dev` | API base URL |
 
-## What is VULK?
+## How It Works
 
-[VULK](https://vulk.dev) is an AI-powered application builder that generates production-ready web applications from text descriptions. It supports:
+```
+You → "Build me a task manager"
+       ↓
+MCP Server → POST /api/v1/projects (create record)
+       ↓
+MCP Server → POST /api/agent/stream (trigger AI generation)
+       ↓
+VULK Agent → Intent analysis → Code generation → Auto-fix → Verify
+       ↓
+MCP Server ← SSE stream (file_start, file_delta, file_complete events)
+       ↓
+You ← { files: [...], previewUrl, editorUrl }
+```
 
-- **16+ AI models** (Claude, GPT-4o, Gemini, DeepSeek, and more)
-- **Full-stack generation** (React frontend + API backend + database)
-- **One-click deployment** to Cloudflare Pages
-- **Real-time preview** with hot reload
-- **8 languages** (EN, PT, FR, DE, ES, IT, JA, HI)
+The generation pipeline includes:
+- **Intent analysis** — understands what kind of app you want
+- **ReAct loop** — AI plans and generates files iteratively
+- **Auto-fixer** — deterministic fixes for common issues
+- **Browser verification** — renders the app and fixes errors
+- **Quality scoring** — ensures the output meets standards
 
-### Pricing
+## Pricing
 
-| Plan | Price | Credits/month |
-|------|-------|---------------|
-| Free | $0 | 3 generations |
-| Builder | $19/mo | 100 generations |
-| Pro | $49/mo | 300 generations |
-| Team | $99/mo | 1000 generations |
-| Business | $249/mo | Unlimited |
+| Plan | Price | Generations | Best For |
+|------|-------|-------------|----------|
+| Free | $0 | 3/month | Trying it out |
+| Builder | $19/mo | 100/month | Individual developers |
+| Pro | $49/mo | 300/month | Power users |
+| Team | $99/mo | 1,000/month | Small teams |
+| Business | $249/mo | Unlimited | Organizations |
+
+All plans include all AI models, custom domains, and API access.
 
 ## Development
 
 ```bash
-# Clone
 git clone https://github.com/devjoaocastro/vulk-mcp-server.git
 cd vulk-mcp-server
-
-# Install
 npm install
-
-# Build
 npm run build
-
-# Run locally
 VULK_API_KEY=vk_sk_... node dist/index.js
 ```
+
+## Links
+
+- [VULK](https://vulk.dev) — AI app builder
+- [API Keys](https://vulk.dev/settings/api-keys) — Get your key
+- [Pricing](https://vulk.dev/pricing) — Plans and pricing
+- [Documentation](https://support.vulk.dev) — Full docs
+- [Status](https://vulk.dev/api/health) — API health
 
 ## License
 
